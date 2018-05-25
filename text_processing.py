@@ -1,6 +1,3 @@
-
-
-
 class text_processor:
 
     ''' Pocess a number of texts into the Bag of words representation '''
@@ -119,7 +116,7 @@ class text_processor:
     def filter_variance(self, threshold = 0.00001):
 
         '''
-        Filter those tokens with a variance in the BOW matrix with less than 
+        Filter those tokens with a variance in the BOW matrix with less than
         '''
 
         from sklearn.feature_selection import VarianceThreshold
