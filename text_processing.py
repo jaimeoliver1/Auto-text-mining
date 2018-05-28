@@ -1,8 +1,20 @@
+import string
+import numpy as np
+import nltk
+import matplotlib.pyplot as plt
+from nltk.corpus import stopwords
+from nltk.stem.snowball import SnowballStemmer
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize.moses import MosesDetokenizer
+from sklearn.feature_extraction.text import HashingVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
 class text_processor:
 
     ''' Pocess a number of texts into the Bag of words representation '''
 
-    def __init__(self, df, text, topic):
+    def __init__(self, df, text, topic, pre_process = True):
 
         '''
         df: (pd.DataFrame)
@@ -10,15 +22,34 @@ class text_processor:
         topic: name of the column containing the label or topic associated
                with each text (str)
         '''
-        from nltk.corpus import stopwords
-        import string
-        from nltk.stem.snowball import SnowballStemmer
-        from nltk.stem import WordNetLemmatizer
 
         self.data = df
         self.corpus = df[[text]]
         self.topic = topic
         self.text = text
+
+        def string_pre_processing(x, lower = True):
+
+            remove_tokens = list(string.punctuation) + \
+                ['...', '..', '', '``', '-', '..', '--', '\'\'', '_']
+
+            if lower:
+                x = x.lower()
+
+            x = [w for w in nltk.word_tokenize(x) if w not in remove_tokens]
+
+            # Some punctuation signs are not detected, because they stick to tokens
+            x = map(lambda y: y.replace('.',''), x)
+            x = map(lambda y: y.replace(',',''), x)
+            x = map(lambda y: y.replace('\'',''), x)
+
+            x = MosesDetokenizer().detokenize(x,return_str=True)
+
+            return x
+
+        if pre_process:
+            self.corpus[text] = self.corpus[text].map(string_pre_processing)
+
 
     def stop_words(self, lan = 'english' , add_stopwords = [], lower = True):
 
@@ -30,24 +61,12 @@ class text_processor:
         lower: whether to work with low case or not. The default value is True. (bool)
         '''
 
-        def one_text_filter_stop_words(x, lan = lan , add_stopwords = add_stopwords, lower = lower):
+        def one_text_filter_stop_words(x = 'string', lan = lan , add_stopwords = add_stopwords, lower = lower):
 
             ''' Function to filter Stop words and punctuation '''
-
-            stop = stopwords.words('english')+ \
-                list(string.punctuation) + \
-                ['...', '..', '', '``', '-', '..', '--', '\'\'', '_'] + \
-                add_stopwords
-
-            if lower:
-                x = x.lower()
+            stop = stopwords.words('english')+  add_stopwords
 
             x = [w for w in nltk.word_tokenize(x) if w not in stop]
-
-            # Some punctuation signs are not detected, because they stick to tokens
-            x = map(lambda y: y.replace('.',''), x)
-            x = map(lambda y: y.replace(',',''), x)
-            x = map(lambda y: y.replace('\'',''), x)
 
             x = MosesDetokenizer().detokenize(x,return_str=True)
 
@@ -86,9 +105,6 @@ class text_processor:
                       relevant features are selected. If set to None all the features
                       are used, which is the setting by default. (int)
         '''
-
-        from sklearn.feature_extraction.text import HashingVectorizer
-        from sklearn.feature_extraction.text import TfidfVectorizer
 
         if method == 'TfidfVectorizer':
 
@@ -153,9 +169,6 @@ class text_processor:
 
     def plot_count_distribution(self, n_items = 30):
 
-        import matplotlib.pyplot as plt
-        import numpy as np
-
         # Diccionario de tokens a tfidf
         bow_v = self.vectorizer.vocabulary_
 
@@ -171,7 +184,7 @@ class text_processor:
             # Nombres de los tokens con más tfidf
             indices_importancia = np.argsort(sub_tfidf)[::-1]
 
-            names =np.array(vectorizer.get_feature_names())
+            names =np.array(self.vectorizer.get_feature_names())
             names = names[indices_importancia][:n_items]
 
             # Figura
