@@ -28,13 +28,12 @@ class text_processor:
         self.topic = topic
         self.text = text
 
-        def string_pre_processing(x, lower = True):
+        def string_pre_processing(x):
 
             remove_tokens = list(string.punctuation) + \
                 ['...', '..', '', '``', '-', '..', '--', '\'\'', '_']
 
-            if lower:
-                x = x.lower()
+            x = x.lower()
 
             x = [w for w in nltk.word_tokenize(x) if w not in remove_tokens]
 
