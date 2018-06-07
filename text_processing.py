@@ -1,6 +1,8 @@
 import string
 import numpy as np
 import nltk
+import langid
+from textblob import TextBlob
 import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
@@ -177,7 +179,7 @@ class text_processor:
         for c in categories:
 
             # TFIDF acumulado
-            sub_tfidf = np.array(np.sum(self.bow_corpus[np.array(y) == c],axis = 0))[0]
+            sub_tfidf = np.array(np.sum(self.bow_corpus[np.array(self.data[self.topic]) == c],axis = 0))[0]
             suma = sorted(sub_tfidf , reverse = True)[:n_items]
 
             # Nombres de los tokens con más tfidf
@@ -194,3 +196,68 @@ class text_processor:
             titulo = 'Frequency distribution of '+ str(c)
             plt.title(titulo)
             plt.show()
+
+class translator:
+
+    ''' Translate texts using TextBlob'''
+
+    def __init__(self, df, text, topic, pre_process = True):
+
+        '''
+        df: (pd.DataFrame)
+        text: name of the column containing the texts (str)
+        topic: name of the column containing the label or topic associated
+               with each text (str)
+        '''
+
+        self.data = df
+        self.corpus = df[[text]]
+        self.topic = topic
+        self.text = text
+
+        def string_pre_processing(x):
+
+            remove_tokens = list(string.punctuation) + \
+                ['...', '..', '', '``', '-', '..', '--', '\'\'', '_']
+
+            x = x.lower()
+
+            x = [w for w in nltk.word_tokenize(x) if w not in remove_tokens]
+
+            # Some punctuation signs are not detected, because they stick to tokens
+            x = map(lambda y: y.replace('.',''), x)
+            x = map(lambda y: y.replace(',',''), x)
+            x = map(lambda y: y.replace('\'',''), x)
+
+            x = MosesDetokenizer().detokenize(x,return_str=True)
+
+            return x
+
+        if pre_process:
+            self.data[self.text] = self.corpus[self.text].map(string_pre_processing)
+
+
+    def language_detect(self, fast = True, possible_languages = ['es','en']):
+        ''''
+        Language identification of the texts:
+        This process is more precise when using TextBlob. If fast=True, the language
+        detection will be done using the langid module, which is faster but more imprecise
+        '''
+
+        if fast:
+            langid.set_languages(possible_languages)
+            self.data['language'] = self.corpus[self.text].map(lambda x: langid.classify(x)[0])
+            return self.data['language']
+        else:
+            self.data['language'] = self.corpus[self.text].map(lambda x:TextBlob(x).detect_language())
+            return self.data['language']
+
+    def translate(self, to_lang = 'es', from_lang = 'language'):
+        '''
+        The language translation is done via the module Textblob
+        to: language to be translated
+        from: name of the column containing the language of origin
+
+        '''
+
+        return self.data[[self.text,from_lang]].apply(lambda x: ''.join([str(TextBlob(x[0]).translate(to = 'es', from_lang=x[1]))]), axis = 1)
