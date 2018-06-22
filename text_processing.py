@@ -10,6 +10,9 @@ from nltk.stem import WordNetLemmatizer
 from nltk.tokenize.moses import MosesDetokenizer
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
+import gensim
+from gensim import corpora
+
 
 
 class text_processor:
@@ -261,3 +264,96 @@ class translator:
         '''
 
         return self.data[[self.text,from_lang]].apply(lambda x: ''.join([str(TextBlob(x[0]).translate(to = 'es', from_lang=x[1]))]), axis = 1)
+
+class topic_analysis:
+
+    ''' Perform an unsupervised topic analysis using gensim for speed '''
+
+    def __init__(self, df, text, pre_process = True):
+
+        '''
+        df: (pd.DataFrame)
+        text: name of the column containing the texts (str)
+        '''
+
+        self.text = text
+        self.corpus = df[[text]]
+
+        def string_pre_processing(x):
+
+            remove_tokens = list(string.punctuation) + \
+                ['...', '..', '', '``', '-', '..', '--', '\'\'', '_']
+
+            x = x.lower()
+
+            x = [w for w in nltk.word_tokenize(x) if w not in remove_tokens]
+
+            # Some punctuation signs are not detected, because they stick to tokens
+            x = map(lambda y: y.replace('.',''), x)
+            x = map(lambda y: y.replace(',',''), x)
+            x = map(lambda y: y.replace('\'',''), x)
+
+            x = MosesDetokenizer().detokenize(x,return_str=True)
+
+            return x
+
+        if pre_process:
+            self.corpus[self.text] = self.corpus[self.text].map(string_pre_processing)
+
+    def LDA(self, no_below=10, no_above=0.3, num_topics = 2, njobs = 2):
+
+        '''
+        the analysis is performed via a LDA decomposition of the doccument
+        term matrix.
+        no_below: Filter out words that occur less than no_below documents
+        no_above: Filter out words that occur  more than no_above% of the documents.
+        '''
+        # List of lists of tokens
+        docs = [doc.split() for doc in self.corpus[self.text].tolist()]
+
+        # Creating the term dictionary of our courpus, where every unique term is assigned an index.
+        dictionary = corpora.Dictionary(docs)
+
+        # Filter out words that occur less than no_below documents, or more than no_above% of the documents.
+        dictionary.filter_extremes(no_below=no_below, no_above=no_above)
+
+        # Converting list of documents (corpus) into Document Term Matrix using dictionary prepared above.
+        self.doc_term_matrix = [dictionary.doc2bow(doc) for doc in docs]
+
+        # Creating the object for LDA model using gensim library
+        Lda = gensim.models.LdaMulticore
+        # Running and Trainign LDA model on the document term matrix
+        ldamodel = Lda(self.doc_term_matrix,
+                       num_topics=num_topics,
+                       id2word = dictionary,
+                       passes=50,
+                       workers = njobs)
+
+        return ldamodel
+
+    def LSI(self, no_below=10, no_above=0.3, num_topics = 2, njobs = 2):
+
+        '''
+        the analysis is performed via a LDA decomposition of the doccument
+        term matrix.
+        no_below: Filter out words that occur less than no_below documents
+        no_above: Filter out words that occur  more than no_above% of the documents.
+        '''
+        # List of lists of tokens
+        docs = [doc.split() for doc in self.corpus[self.text].tolist()]
+
+        # Creating the term dictionary of our courpus, where every unique term is assigned an index.
+        dictionary = corpora.Dictionary(docs)
+
+        # Filter out words that occur less than no_below documents, or more than no_above% of the documents.
+        dictionary.filter_extremes(no_below=no_below, no_above=no_above)
+
+        # Converting list of documents (corpus) into Document Term Matrix using dictionary prepared above.
+        self.doc_term_matrix = [dictionary.doc2bow(doc) for doc in docs]
+
+        tfidf = gensim.models.TfidfModel(self.doc_term_matrix)
+        corpus_tfidf = tfidf[self.doc_term_matrix]
+        # Latent semantic indexing
+        lsi = gensim.models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=num_topics)
+
+        return lsi
